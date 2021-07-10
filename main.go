@@ -401,6 +401,7 @@ func (s *Session) CreateProducerAndRtmpSession() error {
 				}
 
 			}
+			return
 
 		case base.RtmpTypeIdVideo:
 			codecid := msg.Payload[0] & 0xF

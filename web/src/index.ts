@@ -120,7 +120,6 @@ async function start_session()
 						} as ConsumerOptions
 					);
 
-
 					receiveMediaStream = new MediaStream([ aconsumer.track ]);
 					receiveMediaStream.addTrack(vconsumer.track);
 					receivePreview.srcObject = receiveMediaStream;
