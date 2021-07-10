@@ -29,7 +29,8 @@ var (
 )
 
 const (
-	SSRC uint32 = 12345
+	VSSRC uint32 = 12345
+	ASSRC uint32 = 123456
 )
 
 func GetLocalIP() {
@@ -42,6 +43,19 @@ func GetLocalIP() {
 	defer conn.Close()
 	localIP = strings.Split(conn.LocalAddr().String(), ":")[0]
 	log.Println("local ip: ", localIP)
+}
+
+type OpusPacker struct {
+}
+
+func (r *OpusPacker) Pack(in []byte, maxSize int) (out [][]byte) {
+	if in == nil {
+		return [][]byte{}
+	}
+
+	o := make([]byte, len(in))
+	copy(o, in)
+	return [][]byte{o}
 }
 
 func init() {
@@ -127,16 +141,18 @@ type TransportOption struct {
 
 type ServerMessage1 struct {
 	Flag                  string                    `json:"flag"`
-	ProduceID             string                    `json:"pid"`
+	VProduceID            string                    `json:"vpid"`
+	AProduceID            string                    `json:"apid"`
 	RouterRtpCapabilities mediasoup.RtpCapabilities `json:"routerrc"`
 	RecvTransOption       TransportOption           `json:"recvtransoption"`
 }
 
 type ServerMessage2 struct {
-	Flag                  string                  `json:"flag"`
-	ConsumerID            string                  `json:"cid"`
-	Kind                  mediasoup.MediaKind     `json:"kind"`
-	ConsumerRtpParameters mediasoup.RtpParameters `json:"crtpp"`
+	Flag                   string                  `json:"flag"`
+	VConsumerID            string                  `json:"vcid"`
+	AConsumerID            string                  `json:"acid"`
+	VConsumerRtpParameters mediasoup.RtpParameters `json:"vcrtpp"`
+	AConsumerRtpParameters mediasoup.RtpParameters `json:"acrtpp"`
 }
 
 type ClientMessage1 struct {
@@ -154,8 +170,10 @@ type Session struct {
 	pullResChan      chan error
 	rtmpUrl          string
 	pullSession      *rtmp.PullSession
-	producer         *mediasoup.Producer
-	consumer         *mediasoup.Consumer
+	vproducer        *mediasoup.Producer
+	aproducer        *mediasoup.Producer
+	vconsumer        *mediasoup.Consumer
+	aconsumer        *mediasoup.Consumer
 	consumeTransport *mediasoup.WebRtcTransport
 }
 
@@ -224,8 +242,8 @@ func (s *Session) ProcessMessage() error {
 }
 
 func (s *Session) ApplyClientMessage1(cm1 *ClientMessage1) error {
-	consumer, err := s.consumeTransport.Consume(mediasoup.ConsumerOptions{
-		ProducerId:      s.producer.Id(),
+	vconsumer, err := s.consumeTransport.Consume(mediasoup.ConsumerOptions{
+		ProducerId:      s.vproducer.Id(),
 		RtpCapabilities: cm1.ClientCapabilities,
 	})
 
@@ -233,14 +251,26 @@ func (s *Session) ApplyClientMessage1(cm1 *ClientMessage1) error {
 		return err
 	}
 
-	s.consumer = consumer
+	s.vconsumer = vconsumer
+
+	aconsumer, err := s.consumeTransport.Consume(mediasoup.ConsumerOptions{
+		ProducerId:      s.aproducer.Id(),
+		RtpCapabilities: cm1.ClientCapabilities,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	s.aconsumer = aconsumer
 
 	//send consumer option
 	sm2 := &ServerMessage2{
-		Flag:                  "s2",
-		ConsumerID:            consumer.Id(),
-		Kind:                  consumer.Kind(),
-		ConsumerRtpParameters: consumer.RtpParameters(),
+		Flag:                   "s2",
+		VConsumerID:            vconsumer.Id(),
+		AConsumerID:            aconsumer.Id(),
+		VConsumerRtpParameters: vconsumer.RtpParameters(),
+		AConsumerRtpParameters: aconsumer.RtpParameters(),
 	}
 	log.Printf("send sm2: %+v\n", sm2)
 
@@ -267,7 +297,7 @@ func (s *Session) ApplyClientMessage2(cm2 *ClientMessage2) error {
 
 func (s *Session) CreateProducerAndRtmpSession() error {
 	//producer
-	producer, err := directTransport.Produce(mediasoup.ProducerOptions{
+	vproducer, err := directTransport.Produce(mediasoup.ProducerOptions{
 		Kind: mediasoup.MediaKind_Video,
 		RtpParameters: mediasoup.RtpParameters{
 			//Mid: "VIDEO",
@@ -287,7 +317,7 @@ func (s *Session) CreateProducerAndRtmpSession() error {
 			},
 			Encodings: []mediasoup.RtpEncodingParameters{
 				{
-					Ssrc: SSRC,
+					Ssrc: VSSRC,
 				},
 			},
 		},
@@ -297,7 +327,34 @@ func (s *Session) CreateProducerAndRtmpSession() error {
 		log.Println("producer err: ", err)
 		return err
 	}
-	s.producer = producer
+
+	aproducer, err := directTransport.Produce(mediasoup.ProducerOptions{
+		Kind: mediasoup.MediaKind_Video,
+		RtpParameters: mediasoup.RtpParameters{
+			//Mid: "AUDIO",
+			Codecs: []*mediasoup.RtpCodecParameters{
+				{
+					MimeType:    "audio/opus",
+					PayloadType: 126,
+					ClockRate:   48000,
+					Channels:    2,
+				},
+			},
+			Encodings: []mediasoup.RtpEncodingParameters{
+				{
+					Ssrc: ASSRC,
+				},
+			},
+		},
+	})
+
+	if err != nil {
+		log.Println("producer err: ", err)
+		return err
+	}
+
+	s.vproducer = vproducer
+	s.aproducer = aproducer
 
 	//pull rtmp and producer.send inject media into mediasoup
 
@@ -306,11 +363,17 @@ func (s *Session) CreateProducerAndRtmpSession() error {
 
 	s.pullSession = pullSession
 
+	//vpacker
+
 	avcPacker := rtprtcp.NewRtpPackerPayloadAvc(func(option *rtprtcp.RtpPackerPayloadAvcHevcOption) {
 		option.Typ = rtprtcp.RtpPackerPayloadAvcHevcTypeAnnexb
 	})
 
-	rtpPacker := rtprtcp.NewRtpPacker(avcPacker, 90000, SSRC)
+	vrtpPacker := rtprtcp.NewRtpPacker(avcPacker, 90000, VSSRC)
+
+	//apacket
+	opusPacker := &OpusPacker{}
+	artpPacker := rtprtcp.NewRtpPacker(opusPacker, 48000, ASSRC)
 
 	prevTimestamp := uint32(0)
 	var sps []byte
@@ -322,8 +385,23 @@ func (s *Session) CreateProducerAndRtmpSession() error {
 			// noop
 			return
 		case base.RtmpTypeIdAudio:
-			// audio not support yet
-			return
+			//opus
+			if (msg.Payload[0] >> 4) == 13 {
+				pkts := artpPacker.Pack(base.AvPacket{
+					Timestamp:   msg.Header.TimestampAbs,
+					PayloadType: 126,
+					Payload:     msg.Payload[1:],
+				})
+
+				for _, pkt := range pkts {
+					err := aproducer.Send(pkt.Raw)
+					if err != nil {
+						log.Println("audio send pkt to mediasoup err: ", err)
+					}
+				}
+
+			}
+
 		case base.RtmpTypeIdVideo:
 			codecid := msg.Payload[0] & 0xF
 			if codecid != base.RtmpCodecIdAvc {
@@ -369,14 +447,14 @@ func (s *Session) CreateProducerAndRtmpSession() error {
 
 		//package rtp, send to mediasoup
 		if len(out) != 0 {
-			pkts := rtpPacker.Pack(base.AvPacket{
+			pkts := vrtpPacker.Pack(base.AvPacket{
 				Timestamp:   timestamp,
 				PayloadType: 125,
 				Payload:     out,
 			})
 
 			for _, pkt := range pkts {
-				err := producer.Send(pkt.Raw)
+				err := vproducer.Send(pkt.Raw)
 				if err != nil {
 					log.Println("send pkt to mediasoup err: ", err)
 				}
@@ -411,7 +489,8 @@ func (s *Session) CreateProducerAndRtmpSession() error {
 	//send to client
 	m := &ServerMessage1{
 		Flag:                  "s1",
-		ProduceID:             producer.Id(),
+		VProduceID:            vproducer.Id(),
+		AProduceID:            aproducer.Id(),
 		RouterRtpCapabilities: router.RtpCapabilities(),
 		RecvTransOption: TransportOption{
 			ID:    recvTransport.Id(),
@@ -471,11 +550,17 @@ func NewWebsocketConn(w http.ResponseWriter, r *http.Request) {
 		s.pullSession.Dispose()
 
 	}
-	if s.producer != nil {
-		s.producer.Close()
+	if s.vproducer != nil {
+		s.vproducer.Close()
 	}
-	if s.consumer != nil {
-		s.producer.Close()
+	if s.vconsumer != nil {
+		s.vconsumer.Close()
+	}
+	if s.aproducer != nil {
+		s.aproducer.Close()
+	}
+	if s.aconsumer != nil {
+		s.aconsumer.Close()
 	}
 	if s.consumeTransport != nil {
 		s.consumeTransport.Close()

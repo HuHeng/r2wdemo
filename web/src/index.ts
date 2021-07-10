@@ -1,24 +1,24 @@
 /* eslint-disable no-console */
 import { Device } from 'mediasoup-client';
-//import { MediaKind, RtpCapabilities, RtpParameters } from 'mediasoup-client/lib/RtpParameters';
 import { RtpCapabilities, RtpParameters } from 'mediasoup-client/lib/RtpParameters';
-//import { DtlsParameters, TransportOptions, Transport } from 'mediasoup-client/lib/Transport';
 import { TransportOptions, Transport } from 'mediasoup-client/lib/Transport';
 import { ConsumerOptions } from 'mediasoup-client/lib/Consumer';
 
 
 interface ServerMessage1 {
 	flag:'s1';
-	pid:string;
+	vpid:string;
+	apid:string;
 	routerrc:RtpCapabilities;
 	recvtransoption:TransportOptions;
 }
 
 interface ServerMessage2 {
 	flag:'s2';
-	cid:string;
-	kind:string;
-	crtpp:RtpParameters;
+	vcid:string;
+	acid:string;
+	vcrtpp:RtpParameters;
+	acrtpp:RtpParameters;
 }
 
 type ServerMessage = 
@@ -49,7 +49,8 @@ async function start_session()
 
 	const device = new Device();
 	let consumerTransport: Transport | undefined;
-	let pid:string;
+	let vpid:string;
+	let apid:string;
 
 	{
 		ws.onmessage = async (message) => 
@@ -68,7 +69,8 @@ async function start_session()
 			        ws.send(JSON.stringify({
 			        	clientcap: device.rtpCapabilities,
 			        }));
-					pid = decodedMessage.pid;
+					vpid = decodedMessage.vpid;
+					apid = decodedMessage.apid;
 
 			        consumerTransport = device.createRecvTransport(
 			        	decodedMessage.recvtransoption
@@ -95,37 +97,50 @@ async function start_session()
 
 					});
 
-
-
 					break;
 				}
+
 				case 's2': {
 					//servermessage2
-					const consumer = await (consumerTransport as Transport).consume(
+					const vconsumer = await (consumerTransport as Transport).consume(
 						{
-							id:decodedMessage.cid,
-							producerId:pid,
+							id:decodedMessage.vcid,
+							producerId:vpid,
 							kind:'video',
-							rtpParameters:decodedMessage.crtpp
+							rtpParameters:decodedMessage.vcrtpp
+						} as ConsumerOptions
+					);
+
+					const aconsumer = await (consumerTransport as Transport).consume(
+						{
+							id:decodedMessage.acid,
+							producerId:apid,
+							kind:'audio',
+							rtpParameters:decodedMessage.acrtpp
 						} as ConsumerOptions
 					);
 
 
-					if (receiveMediaStream)
-					{
-						receiveMediaStream.addTrack(consumer.track);
-						receivePreview.srcObject = receiveMediaStream;
-					}
-					else
-					{
-						receiveMediaStream = new MediaStream([ consumer.track ]);
-						receivePreview.srcObject = receiveMediaStream;
-					}
+					receiveMediaStream = new MediaStream([ aconsumer.track ]);
+					receiveMediaStream.addTrack(vconsumer.track);
+					receivePreview.srcObject = receiveMediaStream;
+					//receiveMediaStream = new MediaStream([ vconsumer.track ]);
+					//receiveMediaStream.addTrack(vconsumer.track);
+					//receivePreview.srcObject = receiveMediaStream;
+
+					//if (receiveMediaStream)
+					//{
+					//	receiveMediaStream.addTrack(consumer.track);
+					//	receivePreview.srcObject = receiveMediaStream;
+					//}
+					//else
+					//{
+					//	receiveMediaStream = new MediaStream([ consumer.track ]);
+					//	receivePreview.srcObject = receiveMediaStream;
+					//}
 					break;
 				}
-
 			}
-
 		}
 	}
 	ws.onerror = console.error;
