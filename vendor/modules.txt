@@ -1,0 +1,46 @@
+# github.com/gobwas/glob v0.2.3
+github.com/gobwas/glob
+github.com/gobwas/glob/compiler
+github.com/gobwas/glob/match
+github.com/gobwas/glob/syntax
+github.com/gobwas/glob/syntax/ast
+github.com/gobwas/glob/syntax/lexer
+github.com/gobwas/glob/util/runes
+github.com/gobwas/glob/util/strings
+# github.com/gorilla/websocket v1.4.2
+## explicit
+github.com/gorilla/websocket
+# github.com/imdario/mergo v0.3.11
+github.com/imdario/mergo
+# github.com/jiyeyuran/go-eventemitter v1.3.0
+github.com/jiyeyuran/go-eventemitter
+# github.com/jiyeyuran/mediasoup-go v1.7.2-0.20210705124626-75dd632ea4c7
+## explicit
+github.com/jiyeyuran/mediasoup-go
+github.com/jiyeyuran/mediasoup-go/h264
+github.com/jiyeyuran/mediasoup-go/netstring
+# github.com/q191201771/lal v0.23.1-0.20210629143525-0aa837591b87
+## explicit
+github.com/q191201771/lal/pkg/avc
+github.com/q191201771/lal/pkg/base
+github.com/q191201771/lal/pkg/hevc
+github.com/q191201771/lal/pkg/rtmp
+github.com/q191201771/lal/pkg/rtprtcp
+# github.com/q191201771/naza v0.19.2
+## explicit
+github.com/q191201771/naza/pkg/bele
+github.com/q191201771/naza/pkg/connection
+github.com/q191201771/naza/pkg/fake
+github.com/q191201771/naza/pkg/nazaatomic
+github.com/q191201771/naza/pkg/nazabits
+github.com/q191201771/naza/pkg/nazaerrors
+github.com/q191201771/naza/pkg/nazalog
+github.com/q191201771/naza/pkg/nazareflect
+github.com/q191201771/naza/pkg/nazastring
+github.com/q191201771/naza/pkg/unique
+# github.com/rs/zerolog v1.20.0
+github.com/rs/zerolog
+github.com/rs/zerolog/internal/cbor
+github.com/rs/zerolog/internal/json
+# github.com/satori/go.uuid v1.2.0
+github.com/satori/go.uuid

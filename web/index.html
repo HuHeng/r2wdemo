@@ -1,0 +1,37 @@
+<!doctype html>
+<style>
+    body {
+        margin: 0;
+    }
+
+    #container {
+        display: flex;
+    }
+
+    figure {
+        margin: 0;
+        width: 50vw;
+    }
+
+    video {
+        max-width: 100%;
+    }
+    textarea {
+        width: 500px;
+        min-height: 75px;
+    }
+</style>
+<div id="container">
+    <figure>
+        <video id="preview-receive" muted controls></video>
+        <figcaption>Receive preview</figcaption>
+    </figure>
+</div>
+
+rtmp url:<br />
+<textarea id="idRtmpUrl">rtmp://localhost/live/xx</textarea> <br />
+
+<button id="startb"> Start </button><br />
+
+<script src="dist/bundle.js">
+</script>
