@@ -3,7 +3,7 @@
 
 ### build mediasoup 
 
-1. [mediasoup](https://github.com/versatica/mediasoup.git)
+1. git clone https://github.com/versatica/mediasoup.git
 
 2. cd mediasoup/worker && make
 
