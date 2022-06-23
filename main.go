@@ -49,13 +49,8 @@ type OpusPacker struct {
 }
 
 func (r *OpusPacker) Pack(in []byte, maxSize int) (out [][]byte) {
-	if in == nil {
-		return [][]byte{}
-	}
-
-	o := make([]byte, len(in))
-	copy(o, in)
-	return [][]byte{o}
+	out = append(out, in)
+	return
 }
 
 func init() {
@@ -65,12 +60,16 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	log.Println("create worker done")
+
 	worker.On("died", func(err error) {
 		logger.Error("%s", err)
 	})
 
 	dump, _ := worker.Dump()
 	logger.Debug("dump: %+v", dump)
+
+	log.Println("worker dump")
 
 	usage, err := worker.GetResourceUsage()
 	if err != nil {
@@ -571,8 +570,10 @@ func NewWebsocketConn(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	log.Println("start...")
 	flag.StringVar(&addr, "addr", "localhost:3000", "http service address")
 	flag.Parse()
 	http.HandleFunc("/ws", NewWebsocketConn)
+	log.Println("addr: ", addr)
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
